@@ -1,0 +1,39 @@
+{
+    "name": "immich-autotag",
+    "version": "1.0.0",
+    "description": "a silly little script to automatically classify images of my cat",
+    "homepage": "https://github.com/karmeleon/immich-autotag#readme",
+    "bugs": {
+        "url": "https://github.com/karmeleon/immich-autotag/issues"
+    },
+    "license": "ISC",
+    "author": "shawn walton",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/karmeleon/immich-autotag.git"
+    },
+    "bin": "./src/main.ts",
+    "type": "module",
+    "main": "./src/main.ts",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1",
+        "format": "oxfmt",
+        "typecheck": "tsc"
+    },
+    "dependencies": {
+        "@immich/sdk": "^3.4.1",
+        "js-yaml": "^5.5.0",
+        "make-random-color": "^0.0.4",
+        "p-limit": "^7.3.3",
+        "sharp": "^0.35.5",
+        "typescript": "^7.0.2",
+        "zod": "^4.6.7"
+    },
+    "devDependencies": {
+        "@types/node": "^26.6.6",
+        "oxfmt": "^0.78.0"
+    },
+    "engines": {
+        "node": ">=24"
+    }
+}
