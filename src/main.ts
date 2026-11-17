@@ -4,6 +4,7 @@ import { parseArgs } from 'node:util';
 import {
     init,
     getAlbumInfo,
+    getAssetInfo,
     searchAssets,
     AssetTypeEnum,
     deleteTag,
@@ -24,7 +25,6 @@ import { AUTO_TAG_NAME } from './constants.ts';
 import {
     cliFlagsParser,
     configSchemaParser,
-    envVarsParser,
     type Config,
     type DecisionsAPI,
     type DecisionsResponse,
@@ -150,6 +150,16 @@ async function processAsset({ asset, dryRun, tagMap, config, apiKey }: ProcessAs
     assetURL.pathname = `/photos/${asset.id}`;
 
     try {
+        // first check if we've already tagged this asset
+        // possible API bug: the asset object returned by the search endpoint is missing some fields, including the tags.
+        // re-fetch those manually here.
+        const { tags } = await getAssetInfo({ id: asset.id });
+        if (tags?.some((tag) => tag.id === tagMap.get(AUTO_TAG_NAME))) {
+            console.info(
+                `Skipping ${assetURL.toString()} since it's already been processed by this tool.`,
+            );
+            return;
+        }
         const assetBlob = await downloadAsset({ id: asset.id });
         const resizedImage = await sharp(await assetBlob.arrayBuffer())
             .resize({ width: 1024, height: 1024, fit: 'contain' })
@@ -183,7 +193,10 @@ async function processAsset({ asset, dryRun, tagMap, config, apiKey }: ProcessAs
             .map(([key, decision]) => [key, Math.floor(decision.noul * 100)] as const);
 
         console.debug(`Processed ${assetURL.toString()}: ${identifiedTags}`);
-        const tagsToAdd = identifiedTags.map((tag) => tagMap.get(tag[0])!);
+        // also tag with the auto-tag to keep track of what we've processed so far
+        const tagsToAdd = [...identifiedTags, [AUTO_TAG_NAME, 1.0] as const].map((tag) =>
+            tagMap.get(tag[0])!,
+        );
 
         if (!dryRun) {
             await bulkTagAssets({ tagBulkAssetsDto: { assetIds: [asset.id], tagIds: tagsToAdd } });
@@ -263,21 +276,35 @@ async function main() {
             deleteTags: {
                 type: 'boolean',
             },
+            help: {
+                type: 'boolean',
+            },
         },
     });
 
-    const values = cliFlagsParser.parse(rawValues);
+    const flagsParseResult = cliFlagsParser.safeParse(rawValues);
+    if (!flagsParseResult.success || flagsParseResult.data.help) {
+        console.log(`Usage: main.ts --album [UUID]
+
+Flags:
+--dryRun: do not make any changes to Immich
+--maxItems [num]: process the first [num] items in the album, then exit
+--config [path]: provide a path to config.yaml (defaults to pwd/config.yaml)
+--deleteTags: delete the root ${AUTO_TAG_NAME} tag before beginning, allowing previously-tagged assets to be reprocessed
+--help: show this help message`);
+        process.exit();
+    }
+    const values = flagsParseResult.data;
     const config = configSchemaParser.parse(
         load(await fsPromises.readFile(values.config ?? './config.yaml', 'utf-8')),
     );
-    const envVars = envVarsParser.parse(process.env);
 
     const immichAPIBaseUrl = new URL(config.immich.baseUrl);
     immichAPIBaseUrl.pathname = '/api';
 
     init({
         baseUrl: immichAPIBaseUrl.toString(),
-        apiKey: envVars.IMMICH_API_KEY,
+        apiKey: config.immich.apiKey,
     });
 
     const album = await getAlbumInfo({
@@ -315,7 +342,7 @@ async function main() {
                     dryRun: values.dryRun,
                     tagMap,
                     config,
-                    apiKey: envVars.DECISIONS_API_KEY,
+                    apiKey: config.decisions.apiKey,
                 }),
             ),
         ),
