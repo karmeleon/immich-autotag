@@ -9,8 +9,9 @@ a silly little script to automatically classify images of my cat
 ```bash
 $ git clone https://github.com/karmeleon/immich-autotag.git
 $ cd immich-autotag
-$ npm i
 # create config.yaml, see below
+$ npm i
+# find the UUID of an album by visiting it in the web UI and copying it from the URL
 $ node src/main.ts --album [ALBUM_UUID]
 ```
 
